@@ -10,7 +10,7 @@ use std::{
 };
 
 use log::{debug, info, warn};
-use thirtyfour::{By, DesiredCapabilities, WebDriver};
+use thirtyfour::{error::WebDriverError, By, DesiredCapabilities, WebDriver};
 
 async fn work() {
     debug!("Starting Firefox");
@@ -18,7 +18,7 @@ async fn work() {
     let driver = WebDriver::new("http://127.0.0.1:9515", caps).await.unwrap();
 
     driver
-        .get("https://live.douyin.com/921169302662")
+        .get("https://live.douyin.com/409383243824")
         .await
         .unwrap();
     loop {
@@ -29,7 +29,15 @@ async fn work() {
             Ok(ele) => ele,
             Err(e) => {
                 warn!("{}", e);
-                continue;
+                match e {
+                    WebDriverError::NoSuchElement(..) => {
+                        thread::sleep(std::time::Duration::from_secs(1));
+                        continue;
+                    }
+                    _ => {
+                        panic!("{}", e);
+                    }
+                }
             }
         };
 
@@ -37,7 +45,7 @@ async fn work() {
         let mut maps = HashSet::new();
         loop {
             // sleep 1s
-            thread::sleep(std::time::Duration::from_secs(1));
+            thread::sleep(std::time::Duration::from_millis(500));
 
             debug!("============开始获取===========");
             // 遍历所有的节点
@@ -46,10 +54,15 @@ async fn work() {
                 .await
             {
                 Ok(nodes) => nodes,
-                Err(e) => {
-                    warn!("{}", e);
-                    break;
-                }
+                Err(e) => match e {
+                    WebDriverError::NoSuchElement(..) => {
+                        thread::sleep(std::time::Duration::from_secs(1));
+                        continue;
+                    }
+                    _ => {
+                        panic!("{}", e);
+                    }
+                },
             };
 
             debug!("============获取到{}个节点==========", nodes.len());
@@ -60,7 +73,7 @@ async fn work() {
                         None => continue,
                     },
                     Err(e) => {
-                        warn!("{}", e);
+                        debug!("{}", e);
                         continue;
                     }
                 };
@@ -70,10 +83,15 @@ async fn work() {
                 debug!("============开始获取span==========");
                 let spans = match node.find_elements(By::Css("span")).await {
                     Ok(spans) => spans,
-                    Err(e) => {
-                        warn!("{}", e);
-                        continue;
-                    }
+                    Err(e) => match e {
+                        WebDriverError::NoSuchElement(..) => {
+                            thread::sleep(std::time::Duration::from_secs(1));
+                            continue;
+                        }
+                        _ => {
+                            panic!("{}", e);
+                        }
+                    },
                 };
                 debug!("============获取到{}个span==========", spans.len());
                 debug!("======================");
@@ -84,7 +102,7 @@ async fn work() {
                     let text = match spans[i].text().await {
                         Ok(text) => text,
                         Err(e) => {
-                            warn!("{}", e);
+                            debug!("{}", e);
                             continue;
                         }
                     };
@@ -104,26 +122,42 @@ async fn work() {
                     Ok(name) => name.trim_end_matches("：").to_string(),
                     Err(e) => {
                         warn!("{}", e);
-                        continue;
+                        match e {
+                            WebDriverError::NoSuchElement(..) => {
+                                thread::sleep(std::time::Duration::from_secs(1));
+                                continue;
+                            }
+                            _ => {
+                                panic!("{}", e);
+                            }
+                        }
                     }
                 };
 
                 if spans.get(pos + 1).is_none() {
-                    warn!("{}", "no text");
+                    debug!("{}", "no text");
                     continue;
                 }
 
                 let text = match spans[pos + 1].text().await {
                     Ok(text) => text,
                     Err(e) => {
-                        warn!("{}", e);
-                        continue;
+                        debug!("{}", e);
+                        match e {
+                            WebDriverError::NoSuchElement(..) => {
+                                thread::sleep(std::time::Duration::from_secs(1));
+                                continue;
+                            }
+                            _ => {
+                                panic!("{}", e);
+                            }
+                        }
                     }
                 };
 
                 maps.insert(data_id.clone());
                 msgs.push(format!("{}：{}", name, text));
-                info!("{}:{}:{}", data_id, name, text);
+                info!("{}:{}", name, text);
             }
         }
     }
