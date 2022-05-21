@@ -9,16 +9,19 @@ use std::{
     thread,
 };
 
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use thirtyfour::{error::WebDriverError, By, DesiredCapabilities, WebDriver};
 
-async fn work() {
+async fn work(url: &str) {
     debug!("Starting Firefox");
     let caps = DesiredCapabilities::chrome();
     let driver = WebDriver::new("http://127.0.0.1:9515", caps).await.unwrap();
 
-    driver
-        .get("https://live.douyin.com/409383243824")
+    let caps = DesiredCapabilities::chrome();
+    let dr1 = WebDriver::new("http://127.0.0.1:9515", caps).await.unwrap();
+
+    driver.get(url).await.unwrap();
+    dr1.get("https://love.noxue.com/?i=杨过&u=小龙女")
         .await
         .unwrap();
     loop {
@@ -45,7 +48,7 @@ async fn work() {
         let mut maps = HashSet::new();
         loop {
             // sleep 1s
-            thread::sleep(std::time::Duration::from_millis(500));
+            thread::sleep(std::time::Duration::from_millis(1000));
 
             debug!("============开始获取===========");
             // 遍历所有的节点
@@ -158,6 +161,55 @@ async fn work() {
                 maps.insert(data_id.clone());
                 msgs.push(format!("{}：{}", name, text));
                 info!("{}:{}", name, text);
+
+                if !text.contains("520") || text.len() < 6 {
+                    continue;
+                }
+                // 不学网 杨过520小龙女
+                // 正则提取
+                let re = match regex::Regex::new(r"^(.*?)520(.*?)$") {
+                    Ok(re) => re,
+                    Err(e) => {
+                        error!("{}", e);
+                        continue;
+                    }
+                };
+                let caps = match re.captures(&text) {
+                    Some(caps) => caps,
+                    None => {
+                        error!("格式不正确，例子:杨过520小龙女");
+                        continue;
+                    }
+                };
+                let me = caps.get(1);
+                let you = caps.get(2);
+                if me.is_none() || you.is_none() {
+                    error!("格式不正确，例子:杨过520小龙女");
+                    continue;
+                }
+
+                let me = me.unwrap().as_str().trim();
+                let you = you.unwrap().as_str().trim();
+                if me.is_empty() || you.is_empty() {
+                    error!("格式不正确，例子:杨过520小龙女");
+                    continue;
+                }
+
+                if let Err(e) = dr1
+                    .get(format!("https://love.noxue.com/?i={}&u={}", me, you))
+                    .await
+                {
+                    error!("{}", e);
+                    match e {
+                        WebDriverError::NoSuchElement(..) => {
+                            thread::sleep(std::time::Duration::from_secs(1));
+                            continue;
+                        }
+                        _ => {
+                            panic!("{}", e);
+                        }
+                    }
+                }
             }
         }
     }
@@ -166,6 +218,14 @@ async fn work() {
 #[tokio::main]
 async fn main() {
     log4rs::init_file("log.yml", Default::default()).unwrap();
-
-    work().await;
+    // 获取命令行参数 url
+    let args: Vec<String> = std::env::args().collect();
+    let url = if args.len() > 1 {
+        &args[1]
+    } else {
+        // 用法
+        println!("Usage: {} url", args[0]);
+        return;
+    };
+    work(url).await;
 }

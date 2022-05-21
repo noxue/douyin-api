@@ -15,3 +15,4 @@ serde_json = {version = "1", default-features = false, features = ["alloc"]}
 thirtyfour = "0.29"
 tokio = {version = "1", features = ["full"]}
 ctrlc="3"
+regex="1"
